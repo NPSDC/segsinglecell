@@ -4,6 +4,8 @@ test_that("cDataPath var", {
     dir <- "../../../research/out"
     expect_that(readSegCounts(dir = dir, sc = T, cDataPath = NULL, sepCData = ','),
                 throws_error("cDataPath is NULL"))
+    expect_that(readSegCounts(dir = dir, sc = T, cDataPath = '../../../research/SraRunTable.txt', sepCData = ','),
+                throws_error("cDataPath is NULL"))
 })
 
 context("test-output")

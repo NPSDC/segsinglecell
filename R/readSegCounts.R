@@ -1,5 +1,3 @@
-library(SingleCellExperiment)
-
 #' Gets the segment count TSV files within a directory
 #'
 #' @param dir character containing the directory in which tsv files are expected
@@ -123,8 +121,10 @@ createCountDf <- function(segNames, tsvFiles, readEnd)
 #'
 #' @return SingleCellExperiment object
 #'
+#' @export
 createSCellObj <- function(counts, cDataPath, sepCData = ",")
 {
+    library(SingleCellExperiment)
     if(!(file.exists(cDataPath)))
       stop(paste(cDataPath, "is invalid path"))
 
@@ -155,16 +155,20 @@ readSegCounts <- function(dir, sc = F, cDataPath = NULL, sepCData = ",")
 {
     tsvFiles <- getTsvFiles(dir)
     segInf <- extSegs(tsvFiles)
-    countDf <- createCountDf(segNames = segInf[["segNames"]],
-                                  tsvFiles = tsvFiles, readEnd = segInf[["End"]])
-
     if(sc)
     {
-        if(is.null(cDataPath))
-          stop("cDataPath is NULL")
+        if(is.null(cDataPath) | !file.exists(cDataPath))
+          stop("cDataPath is NULL or cDataPath does not exist")
         else
+        {
+          countDf <- createCountDf(segNames = segInf[["segNames"]],
+                                   tsvFiles = tsvFiles, readEnd = segInf[["End"]])
           countDf <- createSCellObj(counts = countDf, cDataPath = cDataPath, sepCData = sepCData)
+          return(countDf)
+        }
     }
+    countDf <- createCountDf(segNames = segInf[["segNames"]],
+                             tsvFiles = tsvFiles, readEnd = segInf[["End"]])
     return(countDf)
 }
 
