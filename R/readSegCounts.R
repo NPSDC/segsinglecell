@@ -1,3 +1,60 @@
+#' Creates a binary Sparse Matrix given segment Meta file
+createBinaryInitSparseMatrix <- function(metaFile)
+{
+    library(Matrix)
+    if(!file.exists(metaFile))
+      stop(paste(metaFile, "is invalid Path"))
+
+    end <- 'PE'
+
+    segsMetaDf <- read.delim(metaFile, stringsAsFactors = F)
+    segs <- segsMetaDf[,1]
+
+    if(end == 'SE'){
+    }
+
+    else
+    {
+        sparseInit <- sparseMatrix(1:length(segs), 1:length(segs), dimnames = list(segs, NULL))
+        diag(sparseInit) <- F
+    }
+    return(sparseInit)
+}
+
+createBinarySparseMatrix <- function(tsvFiles, metaFile)
+{
+    sparseBinaryMat <- createBinaryInitSparseMatrix(metaFile = metaFile)
+    for(tsvFile in tsvFiles)
+    {
+        dfSegs <- read.table(file = tsvFile, sep="\t", header = F,
+                               colClasses = c(NA, NA, "NULL", "NULL", "NULL", "NULL", "NULL",
+                                              "NULL", "NULL", "NULL"), stringsAsFactors = F)
+        #print(rownames(sparseBinaryMat))
+        rowInds <- match(dfSegs$V1, sparseBinaryMat@Dimnames[[1]])
+        colInds <- match(dfSegs$V2, sparseBinaryMat@Dimnames[[1]])
+
+        oInds <- order(rowInds)
+        rowInds <- sort(rowInds)
+        tableInds <- table(rowInds)
+
+        if(sum(is.na(rowInds) != 0))
+          stop("Segment is row is missing")
+        if(sum(is.na(colInds) != 0))
+          stop("Segment is col is missing")
+
+        start = 1
+        for(i in seq_along(as.numeric(names(tableInds))))
+        {
+          end = start + tableInds[i] - 1
+          sparseBinaryMat[as.numeric(names(tableInds)[i]), colInds[oInds[start:end]]] = T
+          start = end + 1
+        }
+
+        print('sup')
+    }
+  return(sparseBinaryMat)
+}
+
 #' Gets the segment count TSV files within a directory
 #'
 #' @param dir character containing the directory in which tsv files are expected
@@ -48,7 +105,7 @@ getReadEnd <- function(arg)
 #' @return list with two arguments with first a character containing read end and
 #'         second being another list containing segment/segment-pairs corresponding
 #'         to each tsv file
-#'
+#' @export
 extSegs <- function(tsvFiles)
 {
     segNames <- list()
