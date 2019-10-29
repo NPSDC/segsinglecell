@@ -1,59 +1,64 @@
-#' Creates a binary Sparse Matrix given segment Meta file
-createBinaryInitSparseMatrix <- function(metaFile)
+getSample <- function(sample)
+{
+    if(length(sample) != 1)
+      stop("Length of file should be 1")
+    if(grepl('/', sample))
+    {
+      sample <- strsplit(sample, split = "/", fixed = T)
+      sample <- sample[[1]][length(sample[[1]])]
+    }
+
+    sample <- strsplit(sample, split = ".", fixed = T)
+    return(sample[[1]][1])
+}
+
+createSparseMatrix <- function(tsvFiles, end = "PE", cores = 1)
 {
     library(Matrix)
-    if(!file.exists(metaFile))
-      stop(paste(metaFile, "is invalid Path"))
+    library(data.table)
+    #library(Parallel)
+    library(doParallel)
+    library(foreach)
+    #dfReq <- data.frame(Segs = character(), Sample = character(), Counts = integer())
 
-    end <- 'PE'
+    # dfList <- mclapply(tsvFiles, function(tsvFile)
+    # {
+    #     sample <- getSample(tsvFile)
+    #     df <- read.table(tsvFile, header = T, sep = "\t", stringsAsFactors = F)
+    #     data.frame(Segs = paste(df$SEG1ID, df$SEG2ID, sep = '-'),
+    #                Sample = rep(sample, nrow(df)), Counts = df[,'count'])
+    #
+    #     # dfReq <- rbind(dfReq, data.frame(Segs = paste(df$V1, df$V2, sep = '-'),
+    #     #                                  Sample = rep(sample, nrow(df)),
+    #     #                                  Counts = rowSums(df[,3:ncol(df)])))
+    # }, mc.cores = cores)
+    #dfReq <- transform(dfReq, Segs = factor(Segs), Sample  = factor(Sample))
+  #  dfReq <- rbindlist(dfList)
 
-    segsMetaDf <- read.delim(metaFile, stringsAsFactors = F)
-    segs <- segsMetaDf[,1]
-
-    if(end == 'SE'){
-    }
-
-    else
+    registerDoParallel(cores = cores)
+    dfReq <- foreach(i = 1:length(tsvFiles), .inorder = F) %dopar%
     {
-        sparseInit <- sparseMatrix(1:length(segs), 1:length(segs), dimnames = list(segs, NULL))
-        diag(sparseInit) <- F
+      tsvFile <- tsvFiles[i]
+      sample <- getSample(tsvFile)
+      df <- read.table(tsvFile, header = T, sep = "\t", stringsAsFactors = F)
+      data.frame(Segs = paste(df$SEG1ID, df$SEG2ID, sep = '-'),
+                 Sample = rep(sample, nrow(df)),
+                 Counts = df[,'count'])
     }
-    return(sparseInit)
+    dfReq <- rbindlist(dfReq)
+    registerDoSEQ()
+    #return(dfReq)
+
+    gc()
+    dfReq <- dfReq[order(dfReq$Segs),]
+    mat <- sparseMatrix(as.numeric(dfReq$Segs), as.numeric(dfReq$Sample),
+                         x = dfReq$Counts, dimnames = list(levels(dfReq$Segs),
+                                                           levels(dfReq$Sample)))
+
+    return(mat=mat)
 }
 
-createBinarySparseMatrix <- function(tsvFiles, metaFile)
-{
-    sparseBinaryMat <- createBinaryInitSparseMatrix(metaFile = metaFile)
-    for(tsvFile in tsvFiles)
-    {
-        dfSegs <- read.table(file = tsvFile, sep="\t", header = F,
-                               colClasses = c(NA, NA, "NULL", "NULL", "NULL", "NULL", "NULL",
-                                              "NULL", "NULL", "NULL"), stringsAsFactors = F)
-        #print(rownames(sparseBinaryMat))
-        rowInds <- match(dfSegs$V1, sparseBinaryMat@Dimnames[[1]])
-        colInds <- match(dfSegs$V2, sparseBinaryMat@Dimnames[[1]])
 
-        oInds <- order(rowInds)
-        rowInds <- sort(rowInds)
-        tableInds <- table(rowInds)
-
-        if(sum(is.na(rowInds) != 0))
-          stop("Segment is row is missing")
-        if(sum(is.na(colInds) != 0))
-          stop("Segment is col is missing")
-
-        start = 1
-        for(i in seq_along(as.numeric(names(tableInds))))
-        {
-          end = start + tableInds[i] - 1
-          sparseBinaryMat[as.numeric(names(tableInds)[i]), colInds[oInds[start:end]]] = T
-          start = end + 1
-        }
-
-        print('sup')
-    }
-  return(sparseBinaryMat)
-}
 
 #' Gets the segment count TSV files within a directory
 #'
@@ -63,19 +68,19 @@ createBinarySparseMatrix <- function(tsvFiles, metaFile)
 #'
 getTsvFiles <- function(dir)
 {
-  if(!dir.exists(dir))
-    stop(paste(dir, "is invalid directory"))
+    if(!dir.exists(dir))
+        stop(paste(dir, "is invalid directory"))
 
-  tsvFiles <- list.files(dir, pattern = "*.tsv")
-  if(length(tsvFiles) == 0)
-    stop("No TSV files")
+    tsvFiles <- list.files(dir, pattern = "*.tsv")
+    if(length(tsvFiles) == 0)
+        stop("No TSV files")
 
-  tsvFiles <- tsvFiles[endsWith(tsvFiles, "tsv")]
-  if(length(tsvFiles) == 0)
-    stop("No TSV files")
+    tsvFiles <- tsvFiles[endsWith(tsvFiles, "tsv")]
+    if(length(tsvFiles) == 0)
+        stop("No TSV files")
 
-  tsvFiles <- paste(dir, tsvFiles, sep = '/')
-  return(tsvFiles)
+    tsvFiles <- paste(dir, tsvFiles, sep = '/')
+    return(tsvFiles)
 }
 
 #' Gets the type of read end
@@ -89,52 +94,14 @@ getReadEnd <- function(arg)
 {
     read <- "S" #Single
     if(class(arg) == 'numeric' | class(arg) == 'integer')
-      return("S")
+        return("S")
 
     if(startsWith(arg, "SEG"))
-      read <- "P" #Paired
+        read <- "P" #Paired
 
     return(read)
 }
 
-
-#' Gets the combined segment pairs within the tsv files and the type of read end
-#'
-#' @param tsvFiles vector conatining the path of tsvFiles
-#'
-#' @return list with two arguments with first a character containing read end and
-#'         second being another list containing segment/segment-pairs corresponding
-#'         to each tsv file
-#' @export
-extSegs <- function(tsvFiles)
-{
-    segNames <- list()
-    readEnd <- "S"
-    for(i in seq_along(tsvFiles))
-    {
-        tsvFile <- tsvFiles[i]
-        if(!file.exists(tsvFile))
-            stop(paste(tsvFile, "is invalid path"))
-        dfSegs <- read.table(tsvFile, header = F, sep = "\t", stringsAsFactors = F)
-
-        if(i == 1)
-            readEnd <- getReadEnd(dfSegs[1, "V2"])
-
-        readEndCur <- getReadEnd(dfSegs[1, "V2"])
-
-        if(readEndCur != readEnd)
-            stop("All files are not single or paired end")
-
-        if(readEnd == "S")
-            segNames[[i]] <- as.character(dfSegs$V1)
-        else
-            segNames[[i]] <- paste(as.character(dfSegs$V1), as.character(dfSegs$V2), sep = "_")
-
-        if(sum(duplicated(segNames[[i]])) != 0)
-            stop(paste(tsvFiles[i], "Duplicated segments"))
-    }
-    return(list("End" = readEnd, "segNames" = segNames))
-}
 
 #' Creates a countMatrix corresponding to the tsv files
 #'
