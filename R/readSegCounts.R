@@ -69,7 +69,7 @@ readSegCounts <- function(tsvFiles, segHashDf, cores = 1)
     return(dfReq)
 }
 
-createRowData <- function(gRList, rNamesCount)
+createRowData <- function(gRange, rNamesCount)
 {
     #rowAnnList <- values(unlist(rowAnnList[["gRange"]]))[,"segID","st","end"]
     readEnd <- if(grepl("[0-9]-[0-9]", rNamesCount[1])) "P" else "S"
@@ -82,27 +82,34 @@ createRowData <- function(gRList, rNamesCount)
 
     else
     {
-        seg1 <- sapply(strsplit(rNamesCount, split = "-", fixed = T), function(x) x[1])
-        seg2 <- sapply(strsplit(rNamesCount, split = "-", fixed = T), function(x) x[2])
+        seg1 <- as.numeric(sapply(strsplit(rNamesCount, split = "-", fixed = T), function(x) x[1]))
+        seg2 <- as.numeric(sapply(strsplit(rNamesCount, split = "-", fixed = T), function(x) x[2]))
 
-        start1 <- start(unlist(gRList[seg1]))
-        start2 <- start(unlist(gRList[seg2]))
+        gRangeSeg1 <- gRange[seg1]
+        gRangeSeg2 <- gRange[seg2]
+
+        start1 <- start(gRangeSeg1)
+        start2 <- start(gRangeSeg2)
+
         startReq <- start1
         startReq[start1 > start2] <- start2[start1 > start2]
 
-        end1 <- end(unlist(gRList[seg1]))
-        end2 <- end(unlist(gRList[seg2]))
+        end1 <- end(gRangeSeg1)
+        end2 <- end(gRangeSeg2)
         endReq <- end1
         endReq[end1 < end2] <- end2[end1 < end2]
 
-        chr1 <- as.character(seqnames(gRList[seg1]))
-        chr2 <- as.character(seqnames(gRList[seg2]))
-        chr <- paste(chr1, chr2, sep = '-')
+        chr1 <- as.character(seqnames(gRangeSeg1))
+        chr2 <- as.character(seqnames(gRangeSeg2))
 
-        gRListReq <- GRanges(seqnames = chr, ranges = IRanges(startReq, endReq),
-                             mcol = DataFrame(Segs = rNamesCount))
+        if(sum(chr1 != chr2) != 0)
+            stop("chr1 not same as chr2")
+        #chr <- paste(chr1, chr2, sep = '-')
+        #print('ss')
+        gRReq <- GRanges(seqnames = chr1, ranges = IRanges(startReq, endReq),
+                      mcol = DataFrame(Seg1 = seg1, Seg2 = seg2))
     }
-    return(gRListReq)
+    return(gRReq)
 }
 
 createColData <- function(cPath, cNames, sep = ',')
@@ -141,10 +148,11 @@ createSegAnnotation <- function(segsMetaFile, sep = '\t')
     segHash <- data.frame(ind = seq(nrow(segMetaDf)), row.names = segMetaDf[,'segID'])
 
     if(sum(rownames(segHash) == segMetaDf[,'segID']) != nrow(segMetaDf))
-        stop('rownames not match')
+        stop("rownames not match")
    # segHash <- segMetaDf[,c("segID", "ind")]
-    SegGRanges <- makeGRangesListFromDataFrame(segMetaDf, keep.extra.columns = T, start.field = "st",
+    SegGRanges <- makeGRangesFromDataFrame(segMetaDf, keep.extra.columns = T, start.field = "st",
                   end.field = "end", seqnames.field = "chrom", strand.field = "strand")
+    #values(SegGRanges)[,"ind"] <- segHash[values(SegGRanges)[,'segID'], "ind"]
     remove(segMetaDf)
     gc()
 
@@ -220,7 +228,10 @@ createSCellObj <- function(dfReads, cData, rData, metaData)
     return(sce)
 }
 
-
+createSummExpObj <- function(dfReads, cData, rData, metaData)
+{
+    library(SummarizedExperiment)
+}
 
 #' Reads the segment counts from the directory containing tsv files
 #'
@@ -254,15 +265,16 @@ createSegCounts <- function(dir, cDataPath, segMetaPath, savePath, dataType = 'S
     dfReads <- readSegCounts(tsvFiles = tsvFiles, segHashDf = segAnnotation[["hashDf"]], cores = cores)
     print("Extracted Reads")
 
-    cData <- createColData(cPath = cDataPath, cNames = unique(dfReads[,'Sample']))
+    cData <- createColData(cPath = cDataPath, cNames = unique(dfReads[,"Sample"]))
     print("Extracted Column Information")
 
-    rowGRanges <- createRowData(gRList = segAnnotation[["gRange"]],
-                                rNamesCount = unique(dfReads[,"Segs"]))
+    rowGRanges <- createRowData(gRange = segAnnotation[["gRange"]],
+                                rNamesCount = unique(dfReads[, "Segs"]))
     print("Extracted Row Information")
-    if(dataType == 'S')
+
+    if(dataType == "S")
         segCounts <- createSCellObj(dfReads = dfReads, cData = cData, rData = rowGRanges,
-                            metaData = segAnnotation[['gRange']])
+                            metaData = segAnnotation[["gRange"]])
     save(segCounts, file = savePath)
     return(segCounts)
 }
