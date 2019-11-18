@@ -220,7 +220,7 @@ createSCellObj <- function(dfReads, cData, rData, metaData)
     dfReads[,"Sample"] <- as.factor(dfReads[,"Sample"])
     mat <- sparseMatrix(as.numeric(dfReads[,"Segs"]), as.numeric(dfReads[,"Sample"]),
                       x = dfReads$Counts, dimnames = list(levels(dfReads$Segs),
-                                                        levels(dfReads$Sample)))
+                                                        levels(dfReads$Sample)), index1 = F)
 
     sce <- SingleCellExperiment(assays = list(counts = mat), colData = cData, rowData = rData)
     int_elementMetadata(sce) <- DataFrame(rData)
