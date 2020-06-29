@@ -117,13 +117,14 @@ createColData <- function(cPath, cNames, sep = ',')
     if(!(file.exists(cPath)))
       stop(paste(cPath, "is invalid path"))
 
-    cData <- read.delim(cPath, sep = sep, stringsAsFactors = F)
+    cData <- read.delim(cPath, sep = sep, stringsAsFactors = F, row.names = 1)
 
-    if(!('Run' %in% colnames(cData)))
-      stop('Run not a column in cData')
-
-    commSampInds <- match(cNames, as.character(cData$Run))
-    cDataReq <- cData[commSampInds,]
+    # if(!('Run' %in% colnames(cData)))
+    #   stop('Run not a column in cData')
+    if(sum(!(cNames %in% rownames(cData))) != 0)
+      stop("cNames not present")
+    
+    cDataReq <- cData[cNames,]
     return(cDataReq)
 }
 
@@ -220,11 +221,13 @@ createSCellObj <- function(dfReads, cData, rData, metaData)
     dfReads[,"Sample"] <- as.factor(dfReads[,"Sample"])
     mat <- sparseMatrix(as.numeric(dfReads[,"Segs"]), as.numeric(dfReads[,"Sample"]),
                       x = dfReads$Counts, dimnames = list(levels(dfReads$Segs),
-                                                        levels(dfReads$Sample)), index1 = F)
+                                                        levels(dfReads$Sample)), index1 = T)
 
-    sce <- SingleCellExperiment(assays = list(counts = mat), colData = cData, rowData = rData)
-    int_elementMetadata(sce) <- DataFrame(rData)
-    int_metadata(sce) <- list(metaData)
+    sce <- SingleCellExperiment(assays = list(counts = mat), colData = cData, rowData = rData, 
+                                metadata = list("meta" = metaData))
+    #int_elementMetadata(sce) <- DataFrame(rData)
+    #int_metadata(sce) <- list(metaData)
+    sce <- sce[,order(colnames(sce))]
     return(sce)
 }
 
@@ -256,7 +259,7 @@ createSegCounts <- function(dir, cDataPath, segMetaPath, savePath, dataType = 'S
     if(length(sep) != 2)
       stop("Length of sep should be 2")
 
-    tsvFiles <- getTsvFiles(dir)
+    tsvFiles <- getTsvFiles(dir)[1:10]
     print("Extracted Tsv files")
 
     segAnnotation <- createSegAnnotation(segsMetaFile = segMetaPath, sep = sep[2])
@@ -265,11 +268,11 @@ createSegCounts <- function(dir, cDataPath, segMetaPath, savePath, dataType = 'S
     dfReads <- readSegCounts(tsvFiles = tsvFiles, segHashDf = segAnnotation[["hashDf"]], cores = cores)
     print("Extracted Reads")
 
-    cData <- createColData(cPath = cDataPath, cNames = unique(dfReads[,"Sample"]))
+    cData <- createColData(cPath = cDataPath, cNames = as.character(unique(dfReads[,"Sample"])))
     print("Extracted Column Information")
 
     rowGRanges <- createRowData(gRange = segAnnotation[["gRange"]],
-                                rNamesCount = unique(dfReads[, "Segs"]))
+                                rNamesCount = as.character(unique(dfReads[, "Segs"])))
     print("Extracted Row Information")
 
     if(dataType == "S")
