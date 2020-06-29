@@ -259,7 +259,7 @@ createSegCounts <- function(dir, cDataPath, segMetaPath, savePath, dataType = 'S
     if(length(sep) != 2)
       stop("Length of sep should be 2")
 
-    tsvFiles <- getTsvFiles(dir)[1:10]
+    tsvFiles <- getTsvFiles(dir)
     print("Extracted Tsv files")
 
     segAnnotation <- createSegAnnotation(segsMetaFile = segMetaPath, sep = sep[2])
