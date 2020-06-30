@@ -227,7 +227,7 @@ createSCellObj <- function(dfReads, cData, rData, metaData)
                                 metadata = list("meta" = metaData))
     #int_elementMetadata(sce) <- DataFrame(rData)
     #int_metadata(sce) <- list(metaData)
-    sce <- sce[,order(colnames(sce))]
+    
     return(sce)
 }
 
@@ -268,11 +268,11 @@ createSegCounts <- function(dir, cDataPath, segMetaPath, savePath, dataType = 'S
     dfReads <- readSegCounts(tsvFiles = tsvFiles, segHashDf = segAnnotation[["hashDf"]], cores = cores)
     print("Extracted Reads")
 
-    cData <- createColData(cPath = cDataPath, cNames = as.character(unique(dfReads[,"Sample"])))
+    cData <- createColData(cPath = cDataPath, cNames = sort(as.character(unique(dfReads[,"Sample"]))))
     print("Extracted Column Information")
 
     rowGRanges <- createRowData(gRange = segAnnotation[["gRange"]],
-                                rNamesCount = as.character(unique(dfReads[, "Segs"])))
+                                rNamesCount = sort(as.character(unique(dfReads[, "Segs"]))))
     print("Extracted Row Information")
 
     if(dataType == "S")
