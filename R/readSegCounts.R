@@ -268,7 +268,7 @@ createSegCounts <- function(dir, cDataPath, segMetaPath, savePath, dataType = 'S
     dfReads <- readSegCounts(tsvFiles = tsvFiles, segHashDf = segAnnotation[["hashDf"]], cores = cores)
     print("Extracted Reads")
 
-    cData <- createColData(cPath = cDataPath, cNames = sort(as.character(unique(dfReads[,"Sample"]))))
+    cData <- createColData(cPath = cDataPath, cNames = sort(as.character(unique(dfReads[,"Sample"]))), sep = sep[1])
     print("Extracted Column Information")
 
     rowGRanges <- createRowData(gRange = segAnnotation[["gRange"]],
